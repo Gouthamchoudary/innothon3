@@ -1,0 +1,6 @@
+Rank,model,MAE,RMSE,R2_Score,MAPE_%,time_sec
+1,Random Forest,0.1739,0.4451,0.9879,10.83,1.72
+2,Ridge Regression,0.2157,0.4541,0.9875,225.31,0.0
+3,Linear Regression,0.2171,0.4546,0.9874,229.07,0.01
+4,Decision Tree,0.2245,0.6364,0.9754,14.45,0.11
+5,SVR (RBF),0.7466,1.3517,0.8889,929.68,0.34
