@@ -120,7 +120,7 @@ def get_ai_response(user_query: str, dashboard_context: str, chat_history: list)
     try:
         # Check if configured
         try:
-            model = genai.GenerativeModel("gemini-1.5-flash")
+            model = genai.GenerativeModel("gemini-2.0-flash")
         except Exception:
             return "⚠️ Gemini API key not configured. Please add `GEMINI_API_KEY` to your Streamlit secrets."
             

@@ -333,7 +333,7 @@ with col_main:
             net_import = total_energy
 
         st.markdown('<p class="section-label">Key Performance Indicators</p>', unsafe_allow_html=True)
-        c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8)
+        c1, c2, c3, c4 = st.columns(4)
         c1.metric("Total Energy",     f"{total_energy:,.0f} kWh",
                   help="Cumulative active energy consumed (max - min of energy meter reading) over the selected period.")
         c2.metric("Avg Power",        f"{avg_power:.2f} kW",
@@ -342,6 +342,7 @@ with col_main:
                   help="Single highest active power reading recorded in the selected period.")
         c4.metric("Power Factor",     f"{avg_pf:.3f}",
                   help="Average power factor. Target is > 0.95 per IS/IEC standards. Low PF increases reactive losses.")
+        c5, c6, c7, c8 = st.columns(4)
         c5.metric("Data Points",      f"{len(df_merged):,}",
                   help="Total number of 15-minute interval records in the selected period.")
         c6.metric("Peak-to-Avg Ratio", f"{par:.2f}x",
@@ -527,7 +528,10 @@ with col_main:
         """, unsafe_allow_html=True)
 
         if ml_data['comparison'] is not None:
-            df_comp = ml_data['comparison']
+            df_comp = ml_data['comparison'].copy()
+            # Keep only the 3 selected models
+            _keep_models = ['Random Forest', 'Linear Regression', 'SVR (RBF)']
+            df_comp = df_comp[df_comp['model'].isin(_keep_models)].reset_index(drop=True)
 
             # Header cards
             st.markdown('<p class="section-label">MODEL RANKINGS</p>', unsafe_allow_html=True)
@@ -631,7 +635,8 @@ with col_main:
             st.markdown("---")
             st.markdown('<p class="section-label">ACTUAL VS PREDICTED</p>', unsafe_allow_html=True)
             pred_df = ml_data['predictions']
-            model_cols = [c for c in pred_df.columns if c != 'actual']
+            _keep_models = ['Random Forest', 'Linear Regression', 'SVR (RBF)']
+            model_cols = [c for c in pred_df.columns if c != 'actual' and c in _keep_models]
             if model_cols:
                 selected_model = st.selectbox("Model", model_cols, label_visibility="collapsed")
                 pred_clean = pred_df[['actual', selected_model]].dropna()
@@ -686,7 +691,10 @@ with col_main:
             st.markdown("---")
             st.markdown('<p class="section-label">FEATURE IMPORTANCE</p>', unsafe_allow_html=True)
             fi_df = ml_data['feature_importances']
-            fi_cols = fi_df.columns.tolist()
+            _keep_fi = ['Random Forest']  # Only RF has native feature importance
+            fi_cols = [c for c in fi_df.columns.tolist() if c in _keep_fi]
+            if not fi_cols:
+                fi_cols = fi_df.columns.tolist()[:1]
             if fi_cols:
                 fi_model = st.selectbox("Model for feature importance", fi_cols, label_visibility="collapsed")
                 fi_sorted = fi_df[fi_model].sort_values(ascending=True).tail(15)
@@ -708,239 +716,203 @@ with col_main:
                 st.plotly_chart(fig_fi, use_container_width=True)
 
         # ==================================================================
-        # FORECASTING SECTION (merged into ML tab)
+        # FORECASTING SECTION — Next-Day Energy Consumption from Daily Data
         # ==================================================================
         st.markdown("---")
         st.markdown("""
         <div class="explain-box">
-        <b>Forecasting Methodology</b> \u2014 All forecasts below are <b>statistical / pattern-based</b>,
-        derived from historical 15-minute interval data. For each signal, the historical mean and standard deviation
-        are computed per hour of day. The shaded bands represent <b>68% (\u00b11\u03c3)</b> and <b>95% (\u00b12\u03c3)</b> confidence intervals
-        assuming normally distributed readings. No future data is used; this is purely an extrapolation of observed patterns.
+        <b>Energy Consumption Forecasting</b> — Daily total energy consumption per feeder is derived from the
+        <b>Daily Report files</b>. A <b>7-day rolling average</b> is used to forecast the next day's expected
+        total consumption per feeder. The chart shows actual historical daily totals and the forecasted next day
+        with the actual forecast date displayed on the x-axis.
         <br><br>
-        <b>Gap handling:</b> Raw timestamps are preserved so that gaps in measurement appear as true discontinuities
-        in the trend charts \u2014 rather than the line "jumping" across missing periods.
+        <b>Method:</b> For each feeder, we take the last 7 days of recorded consumption and compute
+        the mean as the next-day forecast. This simple but robust approach captures recent trend without
+        overfitting to a single day's anomaly.
         </div>
         """, unsafe_allow_html=True)
 
-        # Use full merged df (no dropna) - gaps preserved in timeline
-        df_full = data['merged'].copy()
-        df_m_fc = df_full.dropna(subset=['energy_consumption'])  # only for aggregations
+        df_daily_fc = data['daily'].copy()
+        df_daily_fc['date'] = pd.to_datetime(df_daily_fc['date'])
+        df_daily_fc = df_daily_fc.dropna(subset=['daily_kwh'])
+        df_daily_fc = df_daily_fc[df_daily_fc['daily_kwh'] > 0]
 
-        if len(df_m_fc) > 100:
+        if len(df_daily_fc) > 0:
+            # ---- Total daily consumption across all feeders ----
+            daily_total = df_daily_fc.groupby('date')['daily_kwh'].sum().reset_index()
+            daily_total = daily_total.sort_values('date').reset_index(drop=True)
 
-            # ---- KPI row ----
-            st.markdown('<p class="section-label">ENERGY CONSUMPTION FORECAST</p>', unsafe_allow_html=True)
-            c1, c2, c3 = st.columns(3)
-            hourly_stats = df_m_fc.groupby('hour')['energy_consumption'].agg(['mean', 'std', 'median']).reset_index()
-            hourly_stats.columns = ['hour', 'expected', 'uncertainty', 'median']
-            daily_expected = hourly_stats['expected'].sum() * 4
-            peak_hour = int(hourly_stats.loc[hourly_stats['expected'].idxmax(), 'hour'])
-            min_hour  = int(hourly_stats.loc[hourly_stats['expected'].idxmin(), 'hour'])
-            c1.metric("Expected Daily Consumption", f"{daily_expected:.1f} kWh",
-                      help="Sum of hourly mean consumption \u00d7 4 (15-min intervals per hour).")
-            c2.metric("Predicted Peak Hour", f"{peak_hour:02d}:00",
-                      help="Hour of day with the highest average energy consumption.")
-            c3.metric("Predicted Off-Peak Hour", f"{min_hour:02d}:00",
-                      help="Hour of day with the lowest average energy consumption.")
+            # Forecast next day = rolling 7-day mean
+            window = min(7, len(daily_total))
+            last_7_avg = daily_total['daily_kwh'].tail(window).mean()
+            last_date = daily_total['date'].max()
+            next_date = last_date + pd.Timedelta(days=1)
 
-            st.markdown("---")
-
-            # ---- Recent 7-day trend ----
-            recent = df_full.tail(96 * 7).copy()
-            recent['ma_24h'] = recent['energy_consumption'].rolling(96, min_periods=1).mean()
-
-            fig_trend = go.Figure()
-            fig_trend.add_trace(go.Scatter(
-                x=recent['timestamp'], y=recent['energy_consumption'],
-                mode='lines', name='Actual Consumption',
-                line=dict(color=ACCENT_PRIMARY, width=1),
-                fill='tozeroy', fillcolor='rgba(59, 130, 246, 0.06)',
-            ))
-            fig_trend.add_trace(go.Scatter(
-                x=recent['timestamp'], y=recent['ma_24h'],
-                mode='lines', name='24h Moving Average',
-                line=dict(color=ACCENT_WARNING, width=2.5),
-            ))
-            fig_trend.update_layout(**base_layout(title="Recent 7-Day Consumption Trend", height=400,
-                                                   yaxis_title="Energy (kWh per 15-min)"))
-            fig_trend.update_xaxes(rangeslider=dict(visible=True, thickness=0.05), type="date")
-            st.plotly_chart(fig_trend, use_container_width=True)
-            st.caption("Last 7 days of energy consumption (kWh per 15-min interval) with a 24-hour rolling average overlay.")
-
-            # ---- Energy forecast + Weekday vs Weekend ----
-            col1, col2 = st.columns(2)
-            with col1:
-                fig_fc = go.Figure()
-                fig_fc.add_trace(go.Scatter(
-                    x=list(hourly_stats['hour']) + list(hourly_stats['hour'][::-1]),
-                    y=list(hourly_stats['expected'] + 2 * hourly_stats['uncertainty']) +
-                      list((hourly_stats['expected'] - 2 * hourly_stats['uncertainty']).clip(lower=0)[::-1]),
-                    fill='toself', fillcolor='rgba(59,130,246,0.08)',
-                    line=dict(width=0), name='95% Confidence', showlegend=True,
-                ))
-                fig_fc.add_trace(go.Scatter(
-                    x=list(hourly_stats['hour']) + list(hourly_stats['hour'][::-1]),
-                    y=list(hourly_stats['expected'] + hourly_stats['uncertainty']) +
-                      list((hourly_stats['expected'] - hourly_stats['uncertainty']).clip(lower=0)[::-1]),
-                    fill='toself', fillcolor='rgba(59,130,246,0.15)',
-                    line=dict(width=0), name='68% Confidence', showlegend=True,
-                ))
-                fig_fc.add_trace(go.Scatter(
-                    x=hourly_stats['hour'], y=hourly_stats['expected'],
-                    mode='lines+markers', name='Expected',
-                    line=dict(color=ACCENT_PRIMARY, width=3),
-                    marker=dict(size=6, color=ACCENT_PRIMARY),
-                ))
-                fig_fc.update_layout(**base_layout(title="24-Hour Energy Forecast (Pattern-Based)", height=400,
-                                                    xaxis_title="Hour of Day", yaxis_title="Energy (kWh)"))
-                st.plotly_chart(fig_fc, use_container_width=True)
-                st.caption("Expected energy consumption by hour \u00b1 1\u03c3 / 2\u03c3 bands, derived from all historical readings.")
-
-            with col2:
-                wkday = df_m_fc[df_m_fc['is_weekend'] == 0].groupby('hour')['energy_consumption'].mean().reset_index()
-                wkend = df_m_fc[df_m_fc['is_weekend'] == 1].groupby('hour')['energy_consumption'].mean().reset_index()
-                fig_ww = go.Figure()
-                fig_ww.add_trace(go.Scatter(
-                    x=wkday['hour'], y=wkday['energy_consumption'],
-                    mode='lines+markers', name='Weekday',
-                    line=dict(color=ACCENT_PRIMARY, width=2.5), marker=dict(size=4),
-                ))
-                fig_ww.add_trace(go.Scatter(
-                    x=wkend['hour'], y=wkend['energy_consumption'],
-                    mode='lines+markers', name='Weekend',
-                    line=dict(color=ACCENT_SECONDARY, width=2.5), marker=dict(size=4),
-                ))
-                fig_ww.update_layout(**base_layout(title="Weekday vs Weekend Energy Profile", height=400,
-                                                    xaxis_title="Hour of Day", yaxis_title="Energy (kWh)"))
-                st.plotly_chart(fig_ww, use_container_width=True)
-                st.caption("Comparison of weekday vs weekend hourly patterns. The delta highlights the impact of academic/lab activity.")
-
-            st.markdown("---")
-
-            # ---- Active Power Forecast ----
-            st.markdown('<p class="section-label">ACTIVE POWER DEMAND FORECAST</p>', unsafe_allow_html=True)
-            st.caption("Methodology: historical mean active power (kW) per hour of day, with \u00b11\u03c3 / \u00b12\u03c3 confidence bands.")
-            pw_stats = df_m_fc.groupby('hour')['active_power_kw'].agg(['mean', 'std']).reset_index()
-            pw_stats.columns = ['hour', 'mean', 'std']
-            fig_pw = go.Figure()
-            fig_pw.add_trace(go.Scatter(
-                x=list(pw_stats['hour']) + list(pw_stats['hour'][::-1]),
-                y=list(pw_stats['mean'] + 2*pw_stats['std']) +
-                  list((pw_stats['mean'] - 2*pw_stats['std']).clip(lower=0)[::-1]),
-                fill='toself', fillcolor='rgba(59,130,246,0.08)',
-                line=dict(width=0), name='95% CI',
-            ))
-            fig_pw.add_trace(go.Scatter(
-                x=list(pw_stats['hour']) + list(pw_stats['hour'][::-1]),
-                y=list(pw_stats['mean'] + pw_stats['std']) +
-                  list((pw_stats['mean'] - pw_stats['std']).clip(lower=0)[::-1]),
-                fill='toself', fillcolor='rgba(59,130,246,0.15)',
-                line=dict(width=0), name='68% CI',
-            ))
-            fig_pw.add_trace(go.Scatter(
-                x=pw_stats['hour'], y=pw_stats['mean'],
-                mode='lines+markers', name='Expected',
-                line=dict(color=ACCENT_PRIMARY, width=3),
-                marker=dict(size=6, color=ACCENT_PRIMARY),
-            ))
-            fig_pw.update_layout(**base_layout(title="24-Hour Active Power Demand Forecast (kW)", height=380,
-                                                xaxis_title="Hour of Day", yaxis_title="Active Power (kW)"))
-            st.plotly_chart(fig_pw, use_container_width=True)
-
-            st.markdown("---")
-
-            # ---- Voltage + Solar Forecasts ----
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown('<p class="section-label">VOLTAGE PROFILE FORECAST</p>', unsafe_allow_html=True)
-                st.caption("Historical mean voltage per hour \u00b1 1\u03c3/2\u03c3. Hours where the lower CI approaches 390 V flag potential voltage-dip risk.")
-                vt_stats = df_m_fc.groupby('hour')['voltage_ll_avg'].agg(['mean', 'std']).reset_index()
-                vt_stats.columns = ['hour', 'mean', 'std']
-                fig_vt = go.Figure()
-                fig_vt.add_trace(go.Scatter(
-                    x=list(vt_stats['hour']) + list(vt_stats['hour'][::-1]),
-                    y=list(vt_stats['mean'] + 2*vt_stats['std']) +
-                      list((vt_stats['mean'] - 2*vt_stats['std'])[::-1]),
-                    fill='toself', fillcolor='rgba(239,68,68,0.07)',
-                    line=dict(width=0), name='95% CI',
-                ))
-                fig_vt.add_trace(go.Scatter(
-                    x=list(vt_stats['hour']) + list(vt_stats['hour'][::-1]),
-                    y=list(vt_stats['mean'] + vt_stats['std']) +
-                      list((vt_stats['mean'] - vt_stats['std'])[::-1]),
-                    fill='toself', fillcolor='rgba(239,68,68,0.14)',
-                    line=dict(width=0), name='68% CI',
-                ))
-                fig_vt.add_trace(go.Scatter(
-                    x=vt_stats['hour'], y=vt_stats['mean'],
-                    mode='lines+markers', name='Expected',
-                    line=dict(color=ACCENT_DANGER, width=2.5),
-                    marker=dict(size=5, color=ACCENT_DANGER),
-                ))
-                fig_vt.add_hline(y=415*0.94, line_dash="dot", line_color="rgba(245,158,11,0.6)",
-                                  annotation_text="-6% limit (390 V)", annotation_position="bottom right")
-                fig_vt.update_layout(**base_layout(title="Hourly Voltage Forecast (V)", height=380,
-                                                    xaxis_title="Hour of Day", yaxis_title="Voltage (V)"))
-                st.plotly_chart(fig_vt, use_container_width=True)
-
-            with col2:
-                st.markdown('<p class="section-label">SOLAR GENERATION FORECAST</p>', unsafe_allow_html=True)
-                st.caption("Derived from positive solar readings only (generation hours). Zero output outside 6AM\u201418:00 confirms daylight-only generation.")
-                if 'solar_active_power_kw' in df_m_fc.columns:
-                    sol_gen = df_m_fc[df_m_fc['solar_active_power_kw'] > 0]
-                    sol_stats = sol_gen.groupby('hour')['solar_active_power_kw'].agg(['mean', 'std']).reset_index()
-                    sol_stats.columns = ['hour', 'mean', 'std']
-                    sol_stats['mean'] = sol_stats['mean'].fillna(0)
-                    sol_stats['std'] = sol_stats['std'].fillna(0)
-                    fig_sol = go.Figure()
-                    fig_sol.add_trace(go.Scatter(
-                        x=list(sol_stats['hour']) + list(sol_stats['hour'][::-1]),
-                        y=list(sol_stats['mean'] + 2*sol_stats['std']) +
-                          list((sol_stats['mean'] - 2*sol_stats['std']).clip(lower=0)[::-1]),
-                        fill='toself', fillcolor='rgba(234,179,8,0.08)',
-                        line=dict(width=0), name='95% CI',
-                    ))
-                    fig_sol.add_trace(go.Scatter(
-                        x=list(sol_stats['hour']) + list(sol_stats['hour'][::-1]),
-                        y=list(sol_stats['mean'] + sol_stats['std']) +
-                          list((sol_stats['mean'] - sol_stats['std']).clip(lower=0)[::-1]),
-                        fill='toself', fillcolor='rgba(234,179,8,0.15)',
-                        line=dict(width=0), name='68% CI',
-                    ))
-                    fig_sol.add_trace(go.Scatter(
-                        x=sol_stats['hour'], y=sol_stats['mean'],
-                        mode='lines+markers', name='Expected',
-                        line=dict(color=ACCENT_SOLAR, width=2.5),
-                        marker=dict(size=5, color=ACCENT_SOLAR),
-                    ))
-                    fig_sol.update_layout(**base_layout(title="Hourly Solar Generation Forecast (kW)", height=380,
-                                                         xaxis_title="Hour of Day", yaxis_title="Solar Power (kW)"))
-                    st.plotly_chart(fig_sol, use_container_width=True)
-                else:
-                    st.info("Solar data not available.")
-
-            st.markdown("---")
-
-            # ---- Hourly Load Forecast Table ----
-            st.markdown('<p class="section-label">HOURLY LOAD FORECAST TABLE</p>', unsafe_allow_html=True)
-            forecast_table = hourly_stats.copy()
-            forecast_table['lower_bound'] = (forecast_table['expected'] - forecast_table['uncertainty']).clip(lower=0)
-            forecast_table['upper_bound'] = forecast_table['expected'] + forecast_table['uncertainty']
-            forecast_table = forecast_table.rename(columns={
-                'hour': 'Hour', 'expected': 'Expected (kWh)', 'uncertainty': 'Std Dev',
-                'median': 'Median (kWh)', 'lower_bound': 'Lower Bound', 'upper_bound': 'Upper Bound'
-            })
-            st.dataframe(
-                forecast_table.style.format({
-                    'Expected (kWh)': '{:.4f}', 'Std Dev': '{:.4f}', 'Median (kWh)': '{:.4f}',
-                    'Lower Bound': '{:.4f}', 'Upper Bound': '{:.4f}'
-                }),
-                use_container_width=True, hide_index=True
+            # KPI row
+            st.markdown('<p class="section-label">NEXT-DAY ENERGY FORECAST</p>', unsafe_allow_html=True)
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric(
+                f"Forecast Date",
+                next_date.strftime('%d %b %Y (%a)'),
+                help="The next calendar day after the last available daily report."
             )
-            st.caption("Tabular summary of the pattern-based 24-hour energy consumption forecast. Lower/Upper bounds represent \u00b11\u03c3 from the mean.")
+            c2.metric(
+                "Forecasted Total (kWh)",
+                f"{last_7_avg:,.1f} kWh",
+                help=f"7-day rolling average of total building consumption."
+            )
+            c3.metric(
+                "Last Day Actual (kWh)",
+                f"{daily_total['daily_kwh'].iloc[-1]:,.1f} kWh",
+                delta=f"{last_7_avg - daily_total['daily_kwh'].iloc[-1]:+.1f} vs forecast",
+                help="Total energy consumption on the most recent recorded day."
+            )
+            c4.metric(
+                "7-Day Trend",
+                f"{daily_total['daily_kwh'].tail(7).mean():,.1f} kWh/day avg",
+                help="Average daily consumption over the last 7 days used for forecasting."
+            )
+
+            st.markdown("---")
+
+            # ---- Historical + Forecast chart with actual dates ----
+            fig_fc_daily = go.Figure()
+
+            # Historical actual
+            fig_fc_daily.add_trace(go.Scatter(
+                x=daily_total['date'], y=daily_total['daily_kwh'],
+                mode='lines+markers', name='Actual Daily Consumption',
+                line=dict(color=ACCENT_PRIMARY, width=2),
+                marker=dict(size=5, color=ACCENT_PRIMARY),
+                fill='tozeroy', fillcolor='rgba(59, 130, 246, 0.07)',
+            ))
+
+            # 7-day rolling average trend
+            daily_total['roll7'] = daily_total['daily_kwh'].rolling(7, min_periods=1).mean()
+            fig_fc_daily.add_trace(go.Scatter(
+                x=daily_total['date'], y=daily_total['roll7'],
+                mode='lines', name='7-Day Rolling Average',
+                line=dict(color=ACCENT_WARNING, width=2.5, dash='dot'),
+            ))
+
+            # Forecast point — next day
+            fig_fc_daily.add_trace(go.Scatter(
+                x=[next_date], y=[last_7_avg],
+                mode='markers+text', name=f'Forecast ({next_date.strftime("%d %b")})',
+                marker=dict(size=14, color=ACCENT_SUCCESS, symbol='star',
+                            line=dict(width=2, color='white')),
+                text=[f"  {last_7_avg:,.0f} kWh"],
+                textposition='middle right',
+                textfont=dict(color=ACCENT_SUCCESS, size=12),
+            ))
+
+            # Dashed line connecting last point to forecast
+            fig_fc_daily.add_trace(go.Scatter(
+                x=[last_date, next_date],
+                y=[daily_total['daily_kwh'].iloc[-1], last_7_avg],
+                mode='lines', name='Forecast Bridge',
+                line=dict(color=ACCENT_SUCCESS, width=1.5, dash='dash'),
+                showlegend=False,
+            ))
+
+            # Shaded forecast uncertainty ±10%
+            fig_fc_daily.add_trace(go.Scatter(
+                x=[next_date, next_date],
+                y=[last_7_avg * 0.90, last_7_avg * 1.10],
+                mode='lines', line=dict(width=0),
+                showlegend=False,
+            ))
+
+            fig_fc_daily.update_layout(**base_layout(
+                title="Daily Energy Consumption — Historical & Next-Day Forecast",
+                height=430, xaxis_title="Date", yaxis_title="Total Consumption (kWh)"
+            ))
+            fig_fc_daily.update_xaxes(rangeslider=dict(visible=True, thickness=0.05), type="date")
+            st.plotly_chart(fig_fc_daily, use_container_width=True)
+            st.caption(
+                f"Historical daily total energy consumption (all feeders combined) with 7-day rolling average. "
+                f"The star marker shows the forecasted consumption for "
+                f"{next_date.strftime('%A, %d %B %Y')} = {last_7_avg:,.1f} kWh."
+            )
+
+            st.markdown("---")
+
+            # ---- Per-feeder next-day forecast ----
+            st.markdown('<p class="section-label">NEXT-DAY FORECAST BY FEEDER</p>', unsafe_allow_html=True)
+            feeders_fc = []
+            for feeder, grp in df_daily_fc.groupby('feeder'):
+                grp = grp.sort_values('date')
+                last_n = grp['daily_kwh'].tail(7)
+                fcst_val = last_n.mean()
+                last_val = grp['daily_kwh'].iloc[-1]
+                feeders_fc.append({
+                    'Feeder': feeder,
+                    'Last Actual (kWh)': round(last_val, 2),
+                    f'Forecast {next_date.strftime("%d %b")} (kWh)': round(fcst_val, 2),
+                    'Change': round(fcst_val - last_val, 2),
+                    'Change %': round((fcst_val - last_val) / last_val * 100 if last_val > 0 else 0, 1)
+                })
+            feeders_fc_df = pd.DataFrame(feeders_fc).sort_values(f'Forecast {next_date.strftime("%d %b")} (kWh)', ascending=False)
+
+            col1, col2 = st.columns([2, 3])
+            with col1:
+                st.dataframe(
+                    feeders_fc_df.style.format({
+                        'Last Actual (kWh)': '{:,.1f}',
+                        f'Forecast {next_date.strftime("%d %b")} (kWh)': '{:,.1f}',
+                        'Change': '{:+.1f}',
+                        'Change %': '{:+.1f}%'
+                    }).background_gradient(
+                        subset=[f'Forecast {next_date.strftime("%d %b")} (kWh)'],
+                        cmap='Blues'
+                    ),
+                    use_container_width=True, hide_index=True
+                )
+            with col2:
+                fig_bar_fc = go.Figure()
+                fig_bar_fc.add_trace(go.Bar(
+                    x=feeders_fc_df['Feeder'],
+                    y=feeders_fc_df['Last Actual (kWh)'],
+                    name='Last Actual', marker=dict(color=ACCENT_PRIMARY, cornerradius=4), opacity=0.7,
+                ))
+                fig_bar_fc.add_trace(go.Bar(
+                    x=feeders_fc_df['Feeder'],
+                    y=feeders_fc_df[f'Forecast {next_date.strftime("%d %b")} (kWh)'],
+                    name=f'Forecast {next_date.strftime("%d %b")}',
+                    marker=dict(color=ACCENT_SUCCESS, cornerradius=4), opacity=0.9,
+                ))
+                fig_bar_fc.update_layout(**base_layout(
+                    title=f"Feeder Forecast vs Last Actual — {next_date.strftime('%d %b %Y')}",
+                    height=380, yaxis_title="kWh"
+                ))
+                fig_bar_fc.update_layout(barmode='group',
+                                          xaxis=dict(tickangle=-30))
+                st.plotly_chart(fig_bar_fc, use_container_width=True)
+
+            st.markdown("---")
+
+            # ---- Consumption trend per feeder chart ----
+            st.markdown('<p class="section-label">FEEDER-LEVEL DAILY CONSUMPTION TREND</p>', unsafe_allow_html=True)
+            fig_feeder_trend = px.line(
+                df_daily_fc.sort_values('date'),
+                x='date', y='daily_kwh', color='feeder',
+                color_discrete_sequence=CHART_COLORS,
+                markers=True,
+            )
+            fig_feeder_trend.update_layout(**base_layout(
+                title="Daily Consumption per Feeder (kWh) — With Actual Dates",
+                height=420, xaxis_title="Date", yaxis_title="kWh per Day"
+            ))
+            fig_feeder_trend.update_layout(legend=dict(
+                orientation="h", yanchor="top", y=-0.18, xanchor="center", x=0.5, font=dict(size=9)
+            ))
+            st.plotly_chart(fig_feeder_trend, use_container_width=True)
+            st.caption(
+                "Daily energy consumption (kWh) for each of the 8 feeders over the full dataset. "
+                "Trends reveal which feeders drive total building consumption and on which dates."
+            )
         else:
-            st.info("Insufficient data for forecasting. Need at least 100 data points.")
+            st.info("Insufficient daily data for forecasting. Check that the Daily Report files are loaded.")
 
 
     # ============================================================================
@@ -965,7 +937,9 @@ with col_main:
             solar_peak     = solar_data.loc[solar_gen_mask, 'solar_active_power_kw'].max() if solar_gen_mask.any() else 0
             active_solar   = solar_data[solar_gen_mask]
             solar_avg      = active_solar['solar_active_power_kw'].mean() if len(active_solar) > 0 else 0
-            night_draw_kwh = abs(solar_data.loc[solar_data['solar_active_power_kw'] < 0, 'solar_active_power_kw'].sum()) * 0.25
+            gen_hours = int(solar_gen_mask.sum())
+            gen_days  = max(1, (solar_data['timestamp'].max() - solar_data['timestamp'].min()).days)
+            avg_daily_solar = solar_total / gen_days if gen_days > 0 else 0
 
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Solar Generation",    f"{solar_total:,.1f} kWh",
@@ -974,8 +948,8 @@ with col_main:
                       help="Highest recorded positive solar active power output in the dataset.")
             c3.metric("Avg Daylight Output", f"{solar_avg:.2f} kW",
                       help="Mean solar output calculated only from intervals where inverter was actively generating (>0 kW).")
-            c4.metric("Night Draw",          f"{night_draw_kwh:,.2f} kWh",
-                      help="Cumulative inverter standby consumption when output was negative (night hours). Tracked for net energy balance.")
+            c4.metric("Avg Daily Generation", f"{avg_daily_solar:,.1f} kWh/day",
+                      help="Average daily solar energy generated across all days in the dataset.")
 
             st.markdown("---")
 
