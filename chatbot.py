@@ -5,16 +5,20 @@ import pandas as pd
 
 # Load API key securely
 # Works with Streamlit Cloud secrets management or local .streamlit/secrets.toml
+_GEMINI_API_KEY = "AIzaSyCk19KxqZ_mSUrl5Y1gcYZYpPPOZxKswOY"  # fallback for local dev
+
 try:
     if "GEMINI_API_KEY" in st.secrets:
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
     elif "GEMINI_API_KEY" in os.environ:
         genai.configure(api_key=os.environ["GEMINI_API_KEY"])
     else:
-        # Will fail gracefully later if used
-        pass
+        genai.configure(api_key=_GEMINI_API_KEY)
 except Exception:
-    pass
+    try:
+        genai.configure(api_key=_GEMINI_API_KEY)
+    except Exception:
+        pass
 
 ACADEMIC_CALENDAR_CONTEXT = """
 DOCUMENT TITLE: Spring Semester Academic Calendar 2025-2026

@@ -10,8 +10,7 @@ import time
 import warnings
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import LinearRegression, Ridge
-from sklearn.tree import DecisionTreeRegressor
+from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.svm import SVR
 from sklearn.preprocessing import StandardScaler
@@ -50,7 +49,7 @@ def evaluate_model(y_true, y_pred, model_name):
 
 
 def train_all_models(X_train, y_train, X_test, y_test, feature_names):
-    """Train all 7 ML models and return comparison results."""
+    """Train selected ML models (Linear Regression, Random Forest, SVR, XGBoost, LSTM) and return comparison results."""
     print("\n" + "=" * 70)
     print("🤖 EED SmartGrid Analytics — ML Model Training")
     print("=" * 70)
@@ -68,7 +67,7 @@ def train_all_models(X_train, y_train, X_test, y_test, feature_names):
     # ======================================================================
     # 1. LINEAR REGRESSION
     # ======================================================================
-    print("\n📊 [1/7] Training Linear Regression...")
+    print("\n📊 [1/5] Training Linear Regression...")
     t0 = time.time()
     lr = LinearRegression()
     lr.fit(X_train, y_train)
@@ -80,38 +79,9 @@ def train_all_models(X_train, y_train, X_test, y_test, feature_names):
     print(f"   ✅ Done in {elapsed:.2f}s | R²={results[-1]['R2_Score']} | RMSE={results[-1]['RMSE']}")
 
     # ======================================================================
-    # 2. RIDGE REGRESSION
+    # 2. RANDOM FOREST
     # ======================================================================
-    print("\n📊 [2/7] Training Ridge Regression...")
-    t0 = time.time()
-    ridge = Ridge(alpha=1.0)
-    ridge.fit(X_train, y_train)
-    pred_ridge = ridge.predict(X_test)
-    elapsed = time.time() - t0
-    results.append({**evaluate_model(y_test, pred_ridge, 'Ridge Regression'), 'time_sec': round(elapsed, 2)})
-    predictions['Ridge Regression'] = pred_ridge
-    models['Ridge Regression'] = ridge
-    print(f"   ✅ Done in {elapsed:.2f}s | R²={results[-1]['R2_Score']} | RMSE={results[-1]['RMSE']}")
-
-    # ======================================================================
-    # 3. DECISION TREE
-    # ======================================================================
-    print("\n🌲 [3/7] Training Decision Tree...")
-    t0 = time.time()
-    dt = DecisionTreeRegressor(max_depth=10, min_samples_split=10, random_state=42)
-    dt.fit(X_train, y_train)
-    pred_dt = dt.predict(X_test)
-    elapsed = time.time() - t0
-    results.append({**evaluate_model(y_test, pred_dt, 'Decision Tree'), 'time_sec': round(elapsed, 2)})
-    predictions['Decision Tree'] = pred_dt
-    models['Decision Tree'] = dt
-    feature_importances['Decision Tree'] = dict(zip(feature_names, dt.feature_importances_))
-    print(f"   ✅ Done in {elapsed:.2f}s | R²={results[-1]['R2_Score']} | RMSE={results[-1]['RMSE']}")
-
-    # ======================================================================
-    # 4. RANDOM FOREST
-    # ======================================================================
-    print("\n🌳 [4/7] Training Random Forest...")
+    print("\n🌳 [2/5] Training Random Forest...")
     t0 = time.time()
     rf = RandomForestRegressor(n_estimators=100, max_depth=15, min_samples_split=5, random_state=42, n_jobs=-1)
     rf.fit(X_train, y_train)
@@ -124,9 +94,9 @@ def train_all_models(X_train, y_train, X_test, y_test, feature_names):
     print(f"   ✅ Done in {elapsed:.2f}s | R²={results[-1]['R2_Score']} | RMSE={results[-1]['RMSE']}")
 
     # ======================================================================
-    # 5. XGBOOST
+    # 3. XGBOOST
     # ======================================================================
-    print("\n🚀 [5/7] Training XGBoost...")
+    print("\n🚀 [3/5] Training XGBoost...")
     t0 = time.time()
     try:
         from xgboost import XGBRegressor
@@ -147,9 +117,9 @@ def train_all_models(X_train, y_train, X_test, y_test, feature_names):
         print("   ⚠️ XGBoost not installed, skipping")
 
     # ======================================================================
-    # 6. SVR (Support Vector Regression)
+    # 4. SVR (Support Vector Regression)
     # ======================================================================
-    print("\n🔮 [6/7] Training SVR...")
+    print("\n🔮 [4/5] Training SVR...")
     t0 = time.time()
     # Use subset for SVR if data is too large (SVR is O(n²))
     n_svr = min(len(X_train_scaled), 3000)
@@ -163,9 +133,9 @@ def train_all_models(X_train, y_train, X_test, y_test, feature_names):
     print(f"   ✅ Done in {elapsed:.2f}s | R²={results[-1]['R2_Score']} | RMSE={results[-1]['RMSE']}")
 
     # ======================================================================
-    # 7. LSTM Neural Network
+    # 5. LSTM Neural Network
     # ======================================================================
-    print("\n🧠 [7/7] Training LSTM Neural Network...")
+    print("\n🧠 [5/5] Training LSTM Neural Network...")
     t0 = time.time()
     try:
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'

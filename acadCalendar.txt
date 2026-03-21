@@ -1,0 +1,183 @@
+DOCUMENT TYPE: Academic Calendar
+INSTITUTION: National Institute of Technology Warangal
+DOCUMENT TITLE: Spring Semester Academic Calendar 2025-2026
+APPLIES TO: All UG and PG Programs
+DISPLAYED TERM RANGE: December 2025 to April 2026
+COMMENCEMENT OF CLASSWORK: 15 December 2025
+
+CORE INTERPRETATION RULES:
+1. This is the official academic calendar for the Spring Semester of AY 2025-2026 for all undergraduate and postgraduate programs at NIT Warangal.
+2. Students should interpret Saturdays and Sundays as holidays/non-class days by default unless a specific event, exam, registration task, or institute activity is explicitly written on that date.
+3. Weekdays are working academic days unless marked as a holiday, exam day, registration day, or special event day.
+4. The calendar contains both a date-grid view and a “Major Activities” list; both represent the same semester schedule.
+5. Some dates on weekends still contain official activities, so weekend days are not universally empty.
+6. One line in the source likely contains a typo: “Payment of Fee and Online Registration for Autumn Semester — July 13-19, 2025” appears inconsistent because the next item refers to AY 2026-2027 classwork starting on 20 July 2026.
+
+CALENDAR LEGEND / EVENT TYPES PRESENT:
+- Classwork Commences / Last Working Day
+- Mid / End Exams
+- Registration
+- Closed Holidays
+- Compensatory Classwork
+
+STUDENT WEEKEND RULE:
+- Sunday: holiday by default unless a specific activity is written.
+- Saturday: holiday by default unless a specific activity is written.
+- If a Saturday or Sunday contains registration, exams, or an institute event, that activity overrides the default holiday assumption for that date.
+
+FULL DATE-WISE CONTEXT:
+
+DECEMBER 2025
+- 10 December 2025: Senate Meeting
+- 11 December 2025: Registration
+- 12 December 2025: Registration
+- 13 December 2025: Registration
+- 14 December 2025: Registration; marked as Week 1
+- 15 December 2025: Commencement of Classwork
+- 19 December 2025: Last Date for Payment of Fee with Fine and Registration
+- 21 December 2025: Week 2 marker
+- 25 December 2025: Christmas Day holiday
+- 28 December 2025: Week 3 marker
+- 31 December 2025: Submission of Autumn Semester Course Files to Department
+
+JANUARY 2026
+- 4 January 2026: Week 4 marker
+- 11 January 2026: Week 5 marker
+- 12 January 2026: Extra Holiday
+- 13 January 2026: Extra Holiday
+- 14 January 2026: Makar Sankranti holiday
+- 18 January 2026: Week 6 marker
+- 19 January 2026: First CRC Meeting
+- 20 January 2026: First CRC Meeting
+- 25 January 2026: Week 7 marker
+- 26 January 2026: Republic Day holiday
+- 28 January 2026: PG Dissertation Mid-Semester Review
+- 29 January 2026: PG Dissertation Mid-Semester Review
+- 30 January 2026: PG Dissertation Mid-Semester Review
+- 31 January 2026: Mid-Semester Examinations begin
+
+FEBRUARY 2026
+- 1 February 2026: Week 8 marker
+- 2 February 2026: Mid-Semester Examinations
+- 3 February 2026: Mid-Semester Examinations
+- 4 February 2026: Mid-Semester Examinations
+- 5 February 2026: Mid-Semester Examinations
+- 6 February 2026: Mid-Semester Examinations end
+- 8 February 2026: Week 9 marker
+- 15 February 2026: Week 10 marker
+- 16 February 2026: Verification of Mid-Semester Scripts
+- 17 February 2026: Verification of Mid-Semester Scripts
+- 20 February 2026: Entry of Mid-Semester Marks in NITWAS
+- 22 February 2026: Week 11 marker
+- 27 February 2026: Spring Spree
+- 28 February 2026: Spring Spree
+
+MARCH 2026
+- 1 March 2026: Week 12 marker
+- 4 March 2026: Holi holiday
+- 8 March 2026: Week 13 marker
+- 9 March 2026: Second CRC Meeting
+- 10 March 2026: Second CRC Meeting
+- 13 March 2026: Sports Day
+- 15 March 2026: Week 14 marker
+- 21 March 2026: Id-ul-Fitr holiday
+- 22 March 2026: Week 15 marker
+- 29 March 2026: Week 16 marker
+- 31 March 2026: Mahavir Jayanti holiday
+
+APRIL 2026
+- 3 April 2026: Good Friday holiday
+- 4 April 2026: Farewell Day
+- 5 April 2026: Week 17 marker
+- 8 April 2026: Last Working Day
+- 10 April 2026: End-Semester Examinations begin
+- 11 April 2026: End-Semester Examinations
+- 12 April 2026: Week 18 marker
+- 13 April 2026: End-Semester Examinations
+- 14 April 2026: End-Semester Examinations
+- 15 April 2026: End-Semester Examinations
+- 16 April 2026: End-Semester Examinations
+- 17 April 2026: End-Semester Examinations
+- 18 April 2026: End-Semester Examinations end
+- 19 April 2026: Week 19 marker
+- 20 April 2026: Verification of End Semester Scripts
+- 21 April 2026: Verification of End Semester Scripts
+- 22 April 2026: Verification of End Semester Scripts
+- 23 April 2026: DAC Meeting; Submission of Grades to Other Departments
+- 24 April 2026: DAC Meeting-I for UG Courses
+- 26 April 2026: Week 20 marker
+- 27 April 2026: Submission of Grades to Examination Section; PG Dissertation Evaluation
+- 28 April 2026: Submission of Grades to SUGC; PG Dissertation Evaluation
+- 29 April 2026: DAC Meeting-II for PG Courses; Submission of Grades to Examination Section
+- 30 April 2026: Submission of Grades to SPGC
+
+MAY 2026
+- 1 May 2026: Budha Purnima holiday
+- 3 May 2026: Week 21 marker
+- 7 May 2026: Senate Meeting
+- 8 May 2026: Publication of Results
+- 9 May 2026: Registration for Summer Courses and Makeup
+- 10 May 2026: Week 22 marker; Registration for Summer Courses and Makeup
+- 11 May 2026: Registration for Summer Courses and Makeup
+- 12 May 2026: Commencement of Summer Classwork
+
+MAJOR ACTIVITIES NORMALIZED:
+1. Senate Meeting — 10 December 2025
+2. Payment of Fee and Online Registration — 11 to 14 December 2025
+3. Commencement of Classwork — 15 December 2025
+4. Payment of Fee with Fine — 15 to 19 December 2025
+5. Last Date for Registration — 19 December 2025
+6. Submission of Autumn Semester Course Files to the Department — 31 December 2025
+7. First Class Review Committee Meeting — 19 to 20 January 2026
+8. PG Dissertation Mid-Semester Review — 28 to 30 January 2026
+9. Mid-Semester Examinations — 31 January to 6 February 2026
+10. Verification of Mid-Semester Answer Scripts — 16 to 17 February 2026
+11. Last Date for Entering Mid-Semester Marks in NITWAS — 20 February 2026
+12. Spring Spree — 27 to 28 February 2026
+13. Second Class Review Committee Meeting — 9 to 10 March 2026
+14. Sports Day — 13 March 2026
+15. Farewell Day — 4 April 2026
+16. Last Working Day — 8 April 2026
+17. End Semester Examinations — 10 to 18 April 2026
+18. Verification of End Semester Answer Scripts — 20 to 22 April 2026
+19. Summer Vacation for Students — 20 April to 10 July 2026
+20. DAC Meeting: Submission of Grades to Other Departments — 23 April 2026
+21. DAC Meeting-I for UG Courses — 24 April 2026
+22. PG Dissertation Evaluation — 27 to 28 April 2026
+23. Submission of Grades to the Examination Section — 27 April 2026
+24. Submission of Grades to SUGC — 28 April 2026
+25. DAC Meeting-II for PG Courses — 29 April 2026
+26. Submission of Grades to the Examination Section — 29 April 2026
+27. Submission of Grades to SPGC — 30 April 2026
+28. Senate Meeting — 7 May 2026
+29. Publication of Results — 8 May 2026
+30. Registration for Summer Courses and Makeup Examinations — 9 to 11 May 2026
+31. Summer Vacation for Faculty — 11 May to 3 July 2026
+32. Commencement of Classwork for Summer Courses — 12 May 2026
+33. Submission of Spring Semester Course Files to the Department — 31 May 2026
+34. Makeup Examinations — 8 to 24 June 2026
+35. Payment of Fee and Online Registration for Autumn Semester — 13 to 19 July 2025 (likely inconsistent in source)
+36. Commencement of Autumn Semester Classwork for AY 2026-2027 — 20 July 2026
+
+HOLIDAYS / CLOSED DAYS EXPLICITLY MENTIONED:
+- 25 December 2025: Christmas Day
+- 12 January 2026: Extra Holiday
+- 13 January 2026: Extra Holiday
+- 14 January 2026: Makar Sankranti
+- 26 January 2026: Republic Day
+- 4 March 2026: Holi
+- 21 March 2026: Id-ul-Fitr
+- 31 March 2026: Mahavir Jayanti
+- 3 April 2026: Good Friday
+- 1 May 2026: Budha Purnima
+
+IMPORTANT STUDENT-FOCUSED INTERPRETATION:
+- Regular teaching begins on 15 December 2025.
+- Last working day of the spring semester is 8 April 2026.
+- Mid-semester exam window is 31 January to 6 February 2026.
+- End-semester exam window is 10 April to 18 April 2026.
+- Student summer vacation starts on 20 April 2026 and runs until 10 July 2026.
+- Publication of results is scheduled for 8 May 2026.
+- Summer course and makeup registration runs from 9 to 11 May 2026.
+- Summer classwork begins on 12 May 2026.
+

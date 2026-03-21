@@ -15,7 +15,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from sklearn.ensemble import IsolationForest
-import chatbot
 
 warnings.filterwarnings('ignore')
 
@@ -273,12 +272,13 @@ ml_data = load_model_results()
 # ============================================================================
 col_main, col_chat = st.columns([3, 1])
 with col_main:
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "Overview",
         "Consumption Analytics",
-        "ML Predictions & Forecasting",
+        "ML Predictions",
         "Solar Analytics",
-        "Anomaly Detection"
+        "Anomaly Detection",
+        "Forecasting"
     ])
 
 
@@ -496,17 +496,31 @@ with col_main:
         st.plotly_chart(fig_heat, use_container_width=True)
         st.caption("Heatmap of average kW demand for every hour-day combination. Red cells = high consumption periods; green = low/off periods. Useful for scheduling energy-intensive operations in low-demand windows.")
 
-        fig_pf = go.Figure()
-        fig_pf.add_trace(go.Histogram(
-            x=df_m['power_factor'], nbinsx=60, name='Power Factor',
-            marker=dict(color=ACCENT_SECONDARY, line=dict(color='rgba(139,92,246,0.8)', width=0.5)),
-        ))
-        fig_pf.add_vline(x=0.95, line_dash="dash", line_color=ACCENT_SUCCESS,
-                         annotation_text="Target 0.95", annotation_position="top right")
-        fig_pf.update_layout(**base_layout(title="Power Factor Distribution", height=350,
-                                           xaxis_title="Power Factor", yaxis_title="Frequency"))
-        st.plotly_chart(fig_pf, use_container_width=True)
-        st.caption("Distribution of 15-min power factor readings. Values to the left of 0.95 (green line) attract reactive energy penalty charges under APERC tariff norms.")
+        col1, col2 = st.columns(2)
+        with col1:
+            fig_pf = go.Figure()
+            fig_pf.add_trace(go.Histogram(
+                x=df_m['power_factor'], nbinsx=60, name='Power Factor',
+                marker=dict(color=ACCENT_SECONDARY, line=dict(color='rgba(139,92,246,0.8)', width=0.5)),
+            ))
+            fig_pf.add_vline(x=0.95, line_dash="dash", line_color=ACCENT_SUCCESS,
+                             annotation_text="Target 0.95", annotation_position="top right")
+            fig_pf.update_layout(**base_layout(title="Power Factor Distribution", height=350,
+                                               xaxis_title="Power Factor", yaxis_title="Frequency"))
+            st.plotly_chart(fig_pf, use_container_width=True)
+            st.caption("Distribution of 15-min power factor readings. Values to the left of 0.95 (green line) attract reactive energy penalty charges under APERC tariff norms.")
+
+        with col2:
+            sample = df_m.sample(min(2000, len(df_m)), random_state=42)
+            fig_tri = px.scatter(
+                sample, x='active_power_kw', y='reactive_power_kvar',
+                color='power_factor', color_continuous_scale='RdYlGn', opacity=0.5,
+            )
+            fig_tri.update_layout(**base_layout(title="Power Triangle", height=350,
+                                                 xaxis_title="Active Power (kW)", yaxis_title="Reactive Power (kVAR)"))
+            fig_tri.update_layout(coloraxis_colorbar=dict(title="PF", thickness=12, len=0.8, tickfont=dict(size=9)))
+            st.plotly_chart(fig_tri, use_container_width=True)
+            st.caption("Each dot is one 15-min interval. The angle from the x-axis represents the power factor (colour-coded). Dots near the x-axis (green) indicate high PF; vertical scatter (red) signals heavy reactive load.")
 
 
     # ============================================================================
@@ -515,7 +529,7 @@ with col_main:
     with tab3:
         st.markdown("""
         <div class="explain-box">
-        <b>ML Predictions</b> — Three regression models were trained on <b>36 engineered features</b> (cyclical time
+        <b>ML Predictions</b> — Six regression models were trained on <b>36 engineered features</b> (cyclical time
         encodings, 15-min lag/rolling statistics, power quality metrics, and solar contribution ratios)
         using a <b>75%/25% chronological train/test split</b> to prevent look-ahead bias.
         <br><br>
@@ -707,241 +721,6 @@ with col_main:
                 fig_fi.update_layout(yaxis=dict(title="", tickfont=dict(size=10)))
                 st.plotly_chart(fig_fi, use_container_width=True)
 
-        # ==================================================================
-        # FORECASTING SECTION (merged into ML tab)
-        # ==================================================================
-        st.markdown("---")
-        st.markdown("""
-        <div class="explain-box">
-        <b>Forecasting Methodology</b> \u2014 All forecasts below are <b>statistical / pattern-based</b>,
-        derived from historical 15-minute interval data. For each signal, the historical mean and standard deviation
-        are computed per hour of day. The shaded bands represent <b>68% (\u00b11\u03c3)</b> and <b>95% (\u00b12\u03c3)</b> confidence intervals
-        assuming normally distributed readings. No future data is used; this is purely an extrapolation of observed patterns.
-        <br><br>
-        <b>Gap handling:</b> Raw timestamps are preserved so that gaps in measurement appear as true discontinuities
-        in the trend charts \u2014 rather than the line "jumping" across missing periods.
-        </div>
-        """, unsafe_allow_html=True)
-
-        # Use full merged df (no dropna) - gaps preserved in timeline
-        df_full = data['merged'].copy()
-        df_m_fc = df_full.dropna(subset=['energy_consumption'])  # only for aggregations
-
-        if len(df_m_fc) > 100:
-
-            # ---- KPI row ----
-            st.markdown('<p class="section-label">ENERGY CONSUMPTION FORECAST</p>', unsafe_allow_html=True)
-            c1, c2, c3 = st.columns(3)
-            hourly_stats = df_m_fc.groupby('hour')['energy_consumption'].agg(['mean', 'std', 'median']).reset_index()
-            hourly_stats.columns = ['hour', 'expected', 'uncertainty', 'median']
-            daily_expected = hourly_stats['expected'].sum() * 4
-            peak_hour = int(hourly_stats.loc[hourly_stats['expected'].idxmax(), 'hour'])
-            min_hour  = int(hourly_stats.loc[hourly_stats['expected'].idxmin(), 'hour'])
-            c1.metric("Expected Daily Consumption", f"{daily_expected:.1f} kWh",
-                      help="Sum of hourly mean consumption \u00d7 4 (15-min intervals per hour).")
-            c2.metric("Predicted Peak Hour", f"{peak_hour:02d}:00",
-                      help="Hour of day with the highest average energy consumption.")
-            c3.metric("Predicted Off-Peak Hour", f"{min_hour:02d}:00",
-                      help="Hour of day with the lowest average energy consumption.")
-
-            st.markdown("---")
-
-            # ---- Recent 7-day trend ----
-            recent = df_full.tail(96 * 7).copy()
-            recent['ma_24h'] = recent['energy_consumption'].rolling(96, min_periods=1).mean()
-
-            fig_trend = go.Figure()
-            fig_trend.add_trace(go.Scatter(
-                x=recent['timestamp'], y=recent['energy_consumption'],
-                mode='lines', name='Actual Consumption',
-                line=dict(color=ACCENT_PRIMARY, width=1),
-                fill='tozeroy', fillcolor='rgba(59, 130, 246, 0.06)',
-            ))
-            fig_trend.add_trace(go.Scatter(
-                x=recent['timestamp'], y=recent['ma_24h'],
-                mode='lines', name='24h Moving Average',
-                line=dict(color=ACCENT_WARNING, width=2.5),
-            ))
-            fig_trend.update_layout(**base_layout(title="Recent 7-Day Consumption Trend", height=400,
-                                                   yaxis_title="Energy (kWh per 15-min)"))
-            fig_trend.update_xaxes(rangeslider=dict(visible=True, thickness=0.05), type="date")
-            st.plotly_chart(fig_trend, use_container_width=True)
-            st.caption("Last 7 days of energy consumption (kWh per 15-min interval) with a 24-hour rolling average overlay.")
-
-            # ---- Energy forecast + Weekday vs Weekend ----
-            col1, col2 = st.columns(2)
-            with col1:
-                fig_fc = go.Figure()
-                fig_fc.add_trace(go.Scatter(
-                    x=list(hourly_stats['hour']) + list(hourly_stats['hour'][::-1]),
-                    y=list(hourly_stats['expected'] + 2 * hourly_stats['uncertainty']) +
-                      list((hourly_stats['expected'] - 2 * hourly_stats['uncertainty']).clip(lower=0)[::-1]),
-                    fill='toself', fillcolor='rgba(59,130,246,0.08)',
-                    line=dict(width=0), name='95% Confidence', showlegend=True,
-                ))
-                fig_fc.add_trace(go.Scatter(
-                    x=list(hourly_stats['hour']) + list(hourly_stats['hour'][::-1]),
-                    y=list(hourly_stats['expected'] + hourly_stats['uncertainty']) +
-                      list((hourly_stats['expected'] - hourly_stats['uncertainty']).clip(lower=0)[::-1]),
-                    fill='toself', fillcolor='rgba(59,130,246,0.15)',
-                    line=dict(width=0), name='68% Confidence', showlegend=True,
-                ))
-                fig_fc.add_trace(go.Scatter(
-                    x=hourly_stats['hour'], y=hourly_stats['expected'],
-                    mode='lines+markers', name='Expected',
-                    line=dict(color=ACCENT_PRIMARY, width=3),
-                    marker=dict(size=6, color=ACCENT_PRIMARY),
-                ))
-                fig_fc.update_layout(**base_layout(title="24-Hour Energy Forecast (Pattern-Based)", height=400,
-                                                    xaxis_title="Hour of Day", yaxis_title="Energy (kWh)"))
-                st.plotly_chart(fig_fc, use_container_width=True)
-                st.caption("Expected energy consumption by hour \u00b1 1\u03c3 / 2\u03c3 bands, derived from all historical readings.")
-
-            with col2:
-                wkday = df_m_fc[df_m_fc['is_weekend'] == 0].groupby('hour')['energy_consumption'].mean().reset_index()
-                wkend = df_m_fc[df_m_fc['is_weekend'] == 1].groupby('hour')['energy_consumption'].mean().reset_index()
-                fig_ww = go.Figure()
-                fig_ww.add_trace(go.Scatter(
-                    x=wkday['hour'], y=wkday['energy_consumption'],
-                    mode='lines+markers', name='Weekday',
-                    line=dict(color=ACCENT_PRIMARY, width=2.5), marker=dict(size=4),
-                ))
-                fig_ww.add_trace(go.Scatter(
-                    x=wkend['hour'], y=wkend['energy_consumption'],
-                    mode='lines+markers', name='Weekend',
-                    line=dict(color=ACCENT_SECONDARY, width=2.5), marker=dict(size=4),
-                ))
-                fig_ww.update_layout(**base_layout(title="Weekday vs Weekend Energy Profile", height=400,
-                                                    xaxis_title="Hour of Day", yaxis_title="Energy (kWh)"))
-                st.plotly_chart(fig_ww, use_container_width=True)
-                st.caption("Comparison of weekday vs weekend hourly patterns. The delta highlights the impact of academic/lab activity.")
-
-            st.markdown("---")
-
-            # ---- Active Power Forecast ----
-            st.markdown('<p class="section-label">ACTIVE POWER DEMAND FORECAST</p>', unsafe_allow_html=True)
-            st.caption("Methodology: historical mean active power (kW) per hour of day, with \u00b11\u03c3 / \u00b12\u03c3 confidence bands.")
-            pw_stats = df_m_fc.groupby('hour')['active_power_kw'].agg(['mean', 'std']).reset_index()
-            pw_stats.columns = ['hour', 'mean', 'std']
-            fig_pw = go.Figure()
-            fig_pw.add_trace(go.Scatter(
-                x=list(pw_stats['hour']) + list(pw_stats['hour'][::-1]),
-                y=list(pw_stats['mean'] + 2*pw_stats['std']) +
-                  list((pw_stats['mean'] - 2*pw_stats['std']).clip(lower=0)[::-1]),
-                fill='toself', fillcolor='rgba(59,130,246,0.08)',
-                line=dict(width=0), name='95% CI',
-            ))
-            fig_pw.add_trace(go.Scatter(
-                x=list(pw_stats['hour']) + list(pw_stats['hour'][::-1]),
-                y=list(pw_stats['mean'] + pw_stats['std']) +
-                  list((pw_stats['mean'] - pw_stats['std']).clip(lower=0)[::-1]),
-                fill='toself', fillcolor='rgba(59,130,246,0.15)',
-                line=dict(width=0), name='68% CI',
-            ))
-            fig_pw.add_trace(go.Scatter(
-                x=pw_stats['hour'], y=pw_stats['mean'],
-                mode='lines+markers', name='Expected',
-                line=dict(color=ACCENT_PRIMARY, width=3),
-                marker=dict(size=6, color=ACCENT_PRIMARY),
-            ))
-            fig_pw.update_layout(**base_layout(title="24-Hour Active Power Demand Forecast (kW)", height=380,
-                                                xaxis_title="Hour of Day", yaxis_title="Active Power (kW)"))
-            st.plotly_chart(fig_pw, use_container_width=True)
-
-            st.markdown("---")
-
-            # ---- Voltage + Solar Forecasts ----
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown('<p class="section-label">VOLTAGE PROFILE FORECAST</p>', unsafe_allow_html=True)
-                st.caption("Historical mean voltage per hour \u00b1 1\u03c3/2\u03c3. Hours where the lower CI approaches 390 V flag potential voltage-dip risk.")
-                vt_stats = df_m_fc.groupby('hour')['voltage_ll_avg'].agg(['mean', 'std']).reset_index()
-                vt_stats.columns = ['hour', 'mean', 'std']
-                fig_vt = go.Figure()
-                fig_vt.add_trace(go.Scatter(
-                    x=list(vt_stats['hour']) + list(vt_stats['hour'][::-1]),
-                    y=list(vt_stats['mean'] + 2*vt_stats['std']) +
-                      list((vt_stats['mean'] - 2*vt_stats['std'])[::-1]),
-                    fill='toself', fillcolor='rgba(239,68,68,0.07)',
-                    line=dict(width=0), name='95% CI',
-                ))
-                fig_vt.add_trace(go.Scatter(
-                    x=list(vt_stats['hour']) + list(vt_stats['hour'][::-1]),
-                    y=list(vt_stats['mean'] + vt_stats['std']) +
-                      list((vt_stats['mean'] - vt_stats['std'])[::-1]),
-                    fill='toself', fillcolor='rgba(239,68,68,0.14)',
-                    line=dict(width=0), name='68% CI',
-                ))
-                fig_vt.add_trace(go.Scatter(
-                    x=vt_stats['hour'], y=vt_stats['mean'],
-                    mode='lines+markers', name='Expected',
-                    line=dict(color=ACCENT_DANGER, width=2.5),
-                    marker=dict(size=5, color=ACCENT_DANGER),
-                ))
-                fig_vt.add_hline(y=415*0.94, line_dash="dot", line_color="rgba(245,158,11,0.6)",
-                                  annotation_text="-6% limit (390 V)", annotation_position="bottom right")
-                fig_vt.update_layout(**base_layout(title="Hourly Voltage Forecast (V)", height=380,
-                                                    xaxis_title="Hour of Day", yaxis_title="Voltage (V)"))
-                st.plotly_chart(fig_vt, use_container_width=True)
-
-            with col2:
-                st.markdown('<p class="section-label">SOLAR GENERATION FORECAST</p>', unsafe_allow_html=True)
-                st.caption("Derived from positive solar readings only (generation hours). Zero output outside 6AM\u201418:00 confirms daylight-only generation.")
-                if 'solar_active_power_kw' in df_m_fc.columns:
-                    sol_gen = df_m_fc[df_m_fc['solar_active_power_kw'] > 0]
-                    sol_stats = sol_gen.groupby('hour')['solar_active_power_kw'].agg(['mean', 'std']).reset_index()
-                    sol_stats.columns = ['hour', 'mean', 'std']
-                    sol_stats['mean'] = sol_stats['mean'].fillna(0)
-                    sol_stats['std'] = sol_stats['std'].fillna(0)
-                    fig_sol = go.Figure()
-                    fig_sol.add_trace(go.Scatter(
-                        x=list(sol_stats['hour']) + list(sol_stats['hour'][::-1]),
-                        y=list(sol_stats['mean'] + 2*sol_stats['std']) +
-                          list((sol_stats['mean'] - 2*sol_stats['std']).clip(lower=0)[::-1]),
-                        fill='toself', fillcolor='rgba(234,179,8,0.08)',
-                        line=dict(width=0), name='95% CI',
-                    ))
-                    fig_sol.add_trace(go.Scatter(
-                        x=list(sol_stats['hour']) + list(sol_stats['hour'][::-1]),
-                        y=list(sol_stats['mean'] + sol_stats['std']) +
-                          list((sol_stats['mean'] - sol_stats['std']).clip(lower=0)[::-1]),
-                        fill='toself', fillcolor='rgba(234,179,8,0.15)',
-                        line=dict(width=0), name='68% CI',
-                    ))
-                    fig_sol.add_trace(go.Scatter(
-                        x=sol_stats['hour'], y=sol_stats['mean'],
-                        mode='lines+markers', name='Expected',
-                        line=dict(color=ACCENT_SOLAR, width=2.5),
-                        marker=dict(size=5, color=ACCENT_SOLAR),
-                    ))
-                    fig_sol.update_layout(**base_layout(title="Hourly Solar Generation Forecast (kW)", height=380,
-                                                         xaxis_title="Hour of Day", yaxis_title="Solar Power (kW)"))
-                    st.plotly_chart(fig_sol, use_container_width=True)
-                else:
-                    st.info("Solar data not available.")
-
-            st.markdown("---")
-
-            # ---- Hourly Load Forecast Table ----
-            st.markdown('<p class="section-label">HOURLY LOAD FORECAST TABLE</p>', unsafe_allow_html=True)
-            forecast_table = hourly_stats.copy()
-            forecast_table['lower_bound'] = (forecast_table['expected'] - forecast_table['uncertainty']).clip(lower=0)
-            forecast_table['upper_bound'] = forecast_table['expected'] + forecast_table['uncertainty']
-            forecast_table = forecast_table.rename(columns={
-                'hour': 'Hour', 'expected': 'Expected (kWh)', 'uncertainty': 'Std Dev',
-                'median': 'Median (kWh)', 'lower_bound': 'Lower Bound', 'upper_bound': 'Upper Bound'
-            })
-            st.dataframe(
-                forecast_table.style.format({
-                    'Expected (kWh)': '{:.4f}', 'Std Dev': '{:.4f}', 'Median (kWh)': '{:.4f}',
-                    'Lower Bound': '{:.4f}', 'Upper Bound': '{:.4f}'
-                }),
-                use_container_width=True, hide_index=True
-            )
-            st.caption("Tabular summary of the pattern-based 24-hour energy consumption forecast. Lower/Upper bounds represent \u00b11\u03c3 from the mean.")
-        else:
-            st.info("Insufficient data for forecasting. Need at least 100 data points.")
-
 
     # ============================================================================
     # TAB 4: SOLAR ANALYTICS
@@ -1070,8 +849,6 @@ with col_main:
         df_m = data['merged'].copy()
         with st.spinner("Analyzing patterns..."):
             df_clean, anomalies = run_anomaly_detection(df_m)
-        if 'timestamp' in anomalies.columns:
-            anomalies['calendar_event'] = anomalies['timestamp'].dt.strftime('%Y-%m-%d').apply(chatbot.get_calendar_event)
 
         n_total = len(df_clean)
         n_anomalies = len(anomalies)
@@ -1111,22 +888,35 @@ with col_main:
             fig_anom.update_xaxes(rangeslider=dict(visible=True, thickness=0.05), type="date")
             st.plotly_chart(fig_anom, use_container_width=True)
 
-        # Severity breakdown (full width - anomaly score distribution removed)
-        if 'severity' in anomalies.columns:
-            sev_counts = anomalies['severity'].value_counts().reset_index()
-            sev_counts.columns = ['severity', 'count']
-            sev_colors = {'Critical': ACCENT_DANGER, 'Warning': ACCENT_WARNING, 'Minor': '#64748b'}
-            fig_sev = go.Figure()
-            fig_sev.add_trace(go.Bar(
-                x=sev_counts['severity'], y=sev_counts['count'],
-                marker=dict(color=[sev_colors.get(s, ACCENT_PRIMARY) for s in sev_counts['severity']],
-                            cornerradius=4),
-                text=sev_counts['count'], textposition='outside',
-                textfont=dict(size=11, color='#94a3b8'),
-            ))
-            fig_sev.update_layout(**base_layout(title="Severity Breakdown", height=340,
-                                                 xaxis_title="", yaxis_title="Count"))
-            st.plotly_chart(fig_sev, use_container_width=True)
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if 'anomaly_score' in anomalies.columns:
+                fig_score = go.Figure()
+                fig_score.add_trace(go.Histogram(
+                    x=anomalies['anomaly_score'], nbinsx=40,
+                    marker=dict(color=ACCENT_DANGER, line=dict(width=0.5, color='rgba(239,68,68,0.8)')),
+                ))
+                fig_score.update_layout(**base_layout(title="Anomaly Score Distribution", height=340,
+                                                       xaxis_title="Score (lower = more anomalous)", yaxis_title="Count"))
+                st.plotly_chart(fig_score, use_container_width=True)
+
+        with col2:
+            if 'severity' in anomalies.columns:
+                sev_counts = anomalies['severity'].value_counts().reset_index()
+                sev_counts.columns = ['severity', 'count']
+                sev_colors = {'Critical': ACCENT_DANGER, 'Warning': ACCENT_WARNING, 'Minor': '#64748b'}
+                fig_sev = go.Figure()
+                fig_sev.add_trace(go.Bar(
+                    x=sev_counts['severity'], y=sev_counts['count'],
+                    marker=dict(color=[sev_colors.get(s, ACCENT_PRIMARY) for s in sev_counts['severity']],
+                                cornerradius=4),
+                    text=sev_counts['count'], textposition='outside',
+                    textfont=dict(size=11, color='#94a3b8'),
+                ))
+                fig_sev.update_layout(**base_layout(title="Severity Breakdown", height=340,
+                                                     xaxis_title="", yaxis_title="Count"))
+                st.plotly_chart(fig_sev, use_container_width=True)
 
         # Anomaly details table
         st.markdown('<p class="section-label">ANOMALY DETAILS</p>', unsafe_allow_html=True)
@@ -1136,9 +926,10 @@ with col_main:
         st.dataframe(anomalies[avail_cols].head(100), use_container_width=True, hide_index=True)
 
 
-    # Forecasting content is now in the ML Predictions & Forecasting tab (tab3) above.
-    # The old tab6 has been removed.
-    if False:
+    # ============================================================================
+    # TAB 6: FORECASTING
+    # ============================================================================
+    with tab6:
         st.markdown("""
         <div class="explain-box">
         <b>Forecasting Methodology</b> \u2014 All forecasts on this page are <b>statistical / pattern-based</b>,
@@ -1382,39 +1173,3 @@ st.markdown("""
     Streamlit &middot; Plotly &middot; scikit-learn &middot; XGBoost &middot; TensorFlow
 </div>
 """, unsafe_allow_html=True)
-
-with col_chat:
-    st.markdown('<p class="section-label" style="text-align:center;">🤖 AI Assistant</p>', unsafe_allow_html=True)
-    
-    if "messages" not in st.session_state:
-        st.session_state.messages = [{
-            "role": "model", 
-            "content": "Hi! I analyze the energy data and academic calendar. How can I help?"
-        }]
-
-    chat_container = st.container(height=650)
-    with chat_container:
-        for message in st.session_state.messages:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
-
-    prompt = st.chat_input("Ask about the energy data...")
-    if prompt:
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with chat_container:
-            with st.chat_message("user"):
-                st.markdown(prompt)
-        
-        # Build context safely
-        anom_count = len(anomalies) if 'anomalies' in locals() else 'Unknown'
-        pow_kw = avg_power if 'avg_power' in locals() else 0
-        total_kwh = total_energy if 'total_energy' in locals() else 0
-        context = f"Total Energy: {total_kwh:,.0f} kWh\nAvg Power: {pow_kw:.2f} kW\nAnomalies Detected: {anom_count}"
-        
-        with chat_container:
-            with st.chat_message("model"):
-                with st.spinner("Analyzing..."):
-                    import chatbot
-                    response = chatbot.get_ai_response(prompt, context, st.session_state.messages[:-1])
-                    st.markdown(response)
-        st.session_state.messages.append({"role": "model", "content": response})
